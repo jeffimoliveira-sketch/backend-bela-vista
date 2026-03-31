@@ -4,7 +4,7 @@ import os
 
 app = Flask(__name__)
 
-# 🔗 função de conexão (CORRETO)
+# 🔗 conexão
 def get_connection():
     return psycopg2.connect(
         "postgresql://postgres.bafyykeccwmyruvqsmnh:Nossasenhoradapaz@aws-1-us-east-2.pooler.supabase.com:6543/postgres"
@@ -39,8 +39,8 @@ def registrar():
         return jsonify({"status": "ok"})
 
     except Exception as e:
-    print("ERRO REGISTRAR:", str(e))
-    return jsonify({"erro": str(e)}), 500
+        print("ERRO REGISTRAR:", str(e))
+        return jsonify({"erro": str(e)}), 500
 
 
 # 🔍 CONSULTAR
@@ -57,9 +57,9 @@ def consultar():
         cur = conn.cursor()
 
         cur.execute(
-    "SELECT nome, produto, quantidade, usuario FROM doacoes WHERE LOWER(nome) = LOWER(%s)",
-    (nome,)
-)
+            "SELECT nome, produto, quantidade, usuario FROM doacoes WHERE LOWER(nome) = LOWER(%s)",
+            (nome,)
+        )
 
         rows = cur.fetchall()
 
@@ -69,19 +69,20 @@ def consultar():
         resultado = []
         for r in rows:
             resultado.append({
-    "nome": r[0],
-    "produto": r[1],
-    "quantidade": float(r[2]),
-    "usuario": r[3]
-})
+                "nome": r[0],
+                "produto": r[1],
+                "quantidade": float(r[2]),
+                "usuario": r[3]
+            })
 
         return jsonify(resultado)
 
     except Exception as e:
+        print("ERRO CONSULTAR:", str(e))
         return jsonify({"erro": str(e)}), 500
 
 
-# ❤️ HEALTH CHECK (IMPORTANTE PARA RENDER)
+# ❤️ HEALTH CHECK
 @app.route('/health', methods=['GET'])
 def health():
     return "ok", 200
