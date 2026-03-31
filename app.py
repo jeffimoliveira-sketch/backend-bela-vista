@@ -39,7 +39,8 @@ def registrar():
         return jsonify({"status": "ok"})
 
     except Exception as e:
-        return jsonify({"erro": str(e)}), 500
+    print("ERRO REGISTRAR:", str(e))
+    return jsonify({"erro": str(e)}), 500
 
 
 # 🔍 CONSULTAR
@@ -56,9 +57,9 @@ def consultar():
         cur = conn.cursor()
 
         cur.execute(
-            "SELECT nome, produto, quantidade, usuario, data FROM doacoes WHERE LOWER(nome) = LOWER(%s)",
-            (nome,)
-        )
+    "SELECT nome, produto, quantidade, usuario FROM doacoes WHERE LOWER(nome) = LOWER(%s)",
+    (nome,)
+)
 
         rows = cur.fetchall()
 
@@ -68,12 +69,11 @@ def consultar():
         resultado = []
         for r in rows:
             resultado.append({
-                "nome": r[0],
-                "produto": r[1],
-                "quantidade": float(r[2]),
-                "usuario": r[3],
-                "data": str(r[4])
-            })
+    "nome": r[0],
+    "produto": r[1],
+    "quantidade": float(r[2]),
+    "usuario": r[3]
+})
 
         return jsonify(resultado)
 
