@@ -5,11 +5,7 @@ app = Flask(__name__)
 
 # conexão com supabase
 conn = psycopg2.connect(
-    host="db.bafyykeccwmyruvqsmnh.supabase.co",
-    database="postgres",
-    user="postgres",
-    password="Nossasenhoradapaz",
-    port="5432"
+    "postgresql://postgres:Nossasenhoradapaz@aws-0-us-east-1.pooler.supabase.com:6543/postgres"
 )
 
 @app.route('/consultar', methods=['POST'])
