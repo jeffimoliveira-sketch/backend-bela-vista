@@ -12,28 +12,35 @@ conn = psycopg2.connect(
     port="5432"
 )
 
-@app.route('/health', methods=['GET'])
-def health():
-    return jsonify({"status": "ok"})
-
-@app.route('/registrar', methods=['POST'])
-def registrar():
+@app.route('/consultar', methods=['POST'])
+def consultar():
     data = request.json
-
     nome = data.get('nome')
-    produto = data.get('produto')
-    quantidade = data.get('quantidade')
-    usuario = data.get('usuario')
+
+    print("CONSULTANDO:", nome)
 
     cur = conn.cursor()
     cur.execute(
-        "INSERT INTO doacoes (nome, produto, quantidade, usuario) VALUES (%s, %s, %s, %s)",
-        (nome, produto, quantidade, usuario)
+        "SELECT nome, produto, quantidade, usuario, data FROM doacoes WHERE LOWER(nome) = LOWER(%s)",
+        (nome,)
     )
-    conn.commit()
+
+    rows = cur.fetchall()
+    print("RESULTADO:", rows)
+
     cur.close()
 
-    return jsonify({"msg": "salvo com sucesso"})
+    resultado = []
+    for r in rows:
+        resultado.append({
+            "nome": r[0],
+            "produto": r[1],
+            "quantidade": float(r[2]),
+            "usuario": r[3],
+            "data": str(r[4])
+        })
+
+    return jsonify(resultado)
 
 @app.route('/consultar', methods=['POST'])
 def consultar():
@@ -42,9 +49,9 @@ def consultar():
 
     cur = conn.cursor()
     cur.execute(
-        "SELECT nome, produto, quantidade, usuario, data FROM doacoes WHERE nome = %s",
-        (nome,)
-    )
+    "SELECT nome, produto, quantidade, usuario, data FROM doacoes WHERE LOWER(nome) = LOWER(%s)",
+    (nome,)
+)
 
     rows = cur.fetchall()
     cur.close()
