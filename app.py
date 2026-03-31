@@ -1,71 +1,93 @@
 from flask import Flask, request, jsonify
 import psycopg2
+import os
 
 app = Flask(__name__)
 
-# conexão com supabase
-conn = psycopg2.connect(
-    "postgresql://postgres.bafyykeccwmyruvqsmnh:Nossasenhoradapaz@aws-1-us-east-2.pooler.supabase.com:6543/postgres"
-)
-
-@app.route('/consultar', methods=['POST'])
-def consultar():
-    data = request.json
-    nome = data.get('nome')
-
-    print("CONSULTANDO:", nome)
-
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT nome, produto, quantidade, usuario, data FROM doacoes WHERE LOWER(nome) = LOWER(%s)",
-        (nome,)
+# 🔗 função de conexão (CORRETO)
+def get_connection():
+    return psycopg2.connect(
+        "postgresql://postgres.bafyykeccwmyruvqsmnh:Nossasenhoradapaz@aws-1-us-east-2.pooler.supabase.com:6543/postgres"
     )
 
-    rows = cur.fetchall()
-    print("RESULTADO:", rows)
+# 📥 REGISTRAR
+@app.route('/registrar', methods=['POST'])
+def registrar():
+    try:
+        data = request.json
 
-    cur.close()
+        nome = data.get('nome')
+        produto = data.get('produto')
+        quantidade = data.get('quantidade')
+        usuario = data.get('usuario')
 
-    resultado = []
-    for r in rows:
-        resultado.append({
-            "nome": r[0],
-            "produto": r[1],
-            "quantidade": float(r[2]),
-            "usuario": r[3],
-            "data": str(r[4])
-        })
+        if not nome or not produto or not quantidade or not usuario:
+            return jsonify({"erro": "Preencha todos os campos"}), 400
 
-    return jsonify(resultado)
+        conn = get_connection()
+        cur = conn.cursor()
 
+        cur.execute(
+            "INSERT INTO doacoes (nome, produto, quantidade, usuario) VALUES (%s, %s, %s, %s)",
+            (nome, produto, quantidade, usuario)
+        )
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"status": "ok"})
+
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
+
+# 🔍 CONSULTAR
 @app.route('/consultar', methods=['POST'])
 def consultar():
-    data = request.json
-    nome = data.get('nome')
+    try:
+        data = request.json
+        nome = data.get('nome')
 
-    cur = conn.cursor()
-    cur.execute(
-    "SELECT nome, produto, quantidade, usuario, data FROM doacoes WHERE LOWER(nome) = LOWER(%s)",
-    (nome,)
-)
+        if not nome:
+            return jsonify({"erro": "Informe o nome"}), 400
 
-    rows = cur.fetchall()
-    cur.close()
+        conn = get_connection()
+        cur = conn.cursor()
 
-    resultado = []
-    for r in rows:
-        resultado.append({
-            "nome": r[0],
-            "produto": r[1],
-            "quantidade": float(r[2]),
-            "usuario": r[3],
-            "data": str(r[4])
-        })
+        cur.execute(
+            "SELECT nome, produto, quantidade, usuario, data FROM doacoes WHERE LOWER(nome) = LOWER(%s)",
+            (nome,)
+        )
 
-    return jsonify(resultado)
+        rows = cur.fetchall()
 
-import os
+        cur.close()
+        conn.close()
 
+        resultado = []
+        for r in rows:
+            resultado.append({
+                "nome": r[0],
+                "produto": r[1],
+                "quantidade": float(r[2]),
+                "usuario": r[3],
+                "data": str(r[4])
+            })
+
+        return jsonify(resultado)
+
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
+
+# ❤️ HEALTH CHECK (IMPORTANTE PARA RENDER)
+@app.route('/health', methods=['GET'])
+def health():
+    return "ok", 200
+
+
+# 🚀 START
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
