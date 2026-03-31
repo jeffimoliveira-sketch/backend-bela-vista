@@ -4,10 +4,13 @@ import os
 
 app = Flask(__name__)
 
-# 🔗 conexão
+# 🔗 conexão (usa variável de ambiente ou fallback)
 def get_connection():
     return psycopg2.connect(
-        "postgresql://postgres.bafyykeccwmyruvqsmnh:Nossasenhoradapaz@aws-1-us-east-2.pooler.supabase.com:6543/postgres"
+        os.environ.get(
+            "DATABASE_URL",
+            "postgresql://postgres.bafyykeccwmyruvqsmnh:Nossasenhoradapaz@aws-1-us-east-2.pooler.supabase.com:6543/postgres"
+        )
     )
 
 # 📥 REGISTRAR
@@ -18,10 +21,10 @@ def registrar():
 
         nome = data.get('nome')
         produto = data.get('produto')
-        quantidade = data.get('quantidade')
+        quantidade = float(data.get('quantidade'))
         usuario = data.get('usuario')
 
-        if not nome or not produto or not quantidade or not usuario:
+        if not nome or not produto or not usuario:
             return jsonify({"erro": "Preencha todos os campos"}), 400
 
         conn = get_connection()
@@ -43,7 +46,7 @@ def registrar():
         return jsonify({"erro": str(e)}), 500
 
 
-# 🔍 CONSULTAR
+# 🔍 CONSULTAR POR NOME
 @app.route('/consultar', methods=['POST'])
 def consultar():
     try:
@@ -57,7 +60,7 @@ def consultar():
         cur = conn.cursor()
 
         cur.execute(
-            "SELECT nome, produto, quantidade, usuario FROM doacoes WHERE LOWER(nome) = LOWER(%s)",
+            "SELECT id, nome, produto, quantidade, usuario FROM doacoes WHERE LOWER(nome) = LOWER(%s)",
             (nome,)
         )
 
@@ -69,16 +72,76 @@ def consultar():
         resultado = []
         for r in rows:
             resultado.append({
-                "nome": r[0],
-                "produto": r[1],
-                "quantidade": float(r[2]),
-                "usuario": r[3]
+                "id": r[0],
+                "nome": r[1],
+                "produto": r[2],
+                "quantidade": float(r[3]),
+                "usuario": r[4]
             })
 
         return jsonify(resultado)
 
     except Exception as e:
         print("ERRO CONSULTAR:", str(e))
+        return jsonify({"erro": str(e)}), 500
+
+
+# 📋 LISTAR TODOS
+@app.route('/listar', methods=['GET'])
+def listar():
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+
+        cur.execute(
+            "SELECT id, nome, produto, quantidade, usuario FROM doacoes ORDER BY id DESC"
+        )
+
+        rows = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        resultado = []
+        for r in rows:
+            resultado.append({
+                "id": r[0],
+                "nome": r[1],
+                "produto": r[2],
+                "quantidade": float(r[3]),
+                "usuario": r[4]
+            })
+
+        return jsonify(resultado)
+
+    except Exception as e:
+        print("ERRO LISTAR:", str(e))
+        return jsonify({"erro": str(e)}), 500
+
+
+# 🗑️ DELETAR
+@app.route('/deletar', methods=['POST'])
+def deletar():
+    try:
+        data = request.json
+        id = data.get('id')
+
+        if not id:
+            return jsonify({"erro": "Informe o ID"}), 400
+
+        conn = get_connection()
+        cur = conn.cursor()
+
+        cur.execute("DELETE FROM doacoes WHERE id = %s", (id,))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"status": "deletado"})
+
+    except Exception as e:
+        print("ERRO DELETAR:", str(e))
         return jsonify({"erro": str(e)}), 500
 
 
