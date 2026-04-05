@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify
 import psycopg2
 import os
-from datetime import datetime
 
 app = Flask(__name__)
 
@@ -15,7 +14,7 @@ def get_connection():
     )
 
 # =========================
-# 📥 REGISTRAR
+# 📥 REGISTRAR (COM id_local)
 # =========================
 @app.route('/registrar', methods=['POST'])
 def registrar():
@@ -26,26 +25,26 @@ def registrar():
         produto = data.get('produto')
         quantidade = float(data.get('quantidade'))
         usuario = data.get('usuario')
+        id_local = data.get('id_local')
 
-        if not nome or not produto or not usuario:
-            return jsonify({"erro": "Preencha todos os campos"}), 400
+        if not nome or not produto or not usuario or not id_local:
+            return jsonify({"erro": "Campos obrigatórios faltando"}), 400
 
         conn = get_connection()
         cur = conn.cursor()
 
         cur.execute("""
-            INSERT INTO doacoes (nome, produto, quantidade, usuario, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, NOW(), NOW())
-            RETURNING id
-        """, (nome, produto, quantidade, usuario))
-
-        new_id = cur.fetchone()[0]
+            INSERT INTO doacoes (nome, produto, quantidade, usuario, id_local, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
+            ON CONFLICT (id_local) DO NOTHING
+            RETURNING id, id_local
+        """, (nome, produto, quantidade, usuario, id_local))
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({"id": new_id, "status": "ok"})
+        return jsonify({"status": "ok"})
 
     except Exception as e:
         print("ERRO REGISTRAR:", str(e))
@@ -53,7 +52,7 @@ def registrar():
 
 
 # =========================
-# 📋 LISTAR TODAS (NOVO PADRÃO)
+# 📋 LISTAR
 # =========================
 @app.route('/doacoes', methods=['GET'])
 def listar_doacoes():
@@ -62,7 +61,7 @@ def listar_doacoes():
         cur = conn.cursor()
 
         cur.execute("""
-            SELECT id, nome, produto, quantidade, usuario, created_at, updated_at
+            SELECT id, id_local, nome, produto, quantidade, usuario, created_at, updated_at
             FROM doacoes
             WHERE deleted IS NOT TRUE
             ORDER BY created_at DESC
@@ -77,12 +76,13 @@ def listar_doacoes():
         for r in rows:
             resultado.append({
                 "id": r[0],
-                "nome": r[1],
-                "produto": r[2],
-                "quantidade": float(r[3]),
-                "usuario": r[4],
-                "created_at": r[5],
-                "updated_at": r[6]
+                "id_local": str(r[1]),
+                "nome": r[2],
+                "produto": r[3],
+                "quantidade": int(r[4]),
+                "usuario": r[5],
+                "created_at": r[6],
+                "updated_at": r[7]
             })
 
         return jsonify(resultado)
@@ -93,97 +93,13 @@ def listar_doacoes():
 
 
 # =========================
-# 🔄 SINCRONIZAÇÃO INCREMENTAL (ESSENCIAL)
-# =========================
-@app.route('/sync', methods=['GET'])
-def sync():
-    try:
-        updated_after = request.args.get('updated_after')
-
-        conn = get_connection()
-        cur = conn.cursor()
-
-        if updated_after:
-            cur.execute("""
-                SELECT id, nome, produto, quantidade, usuario, created_at, updated_at, deleted
-                FROM doacoes
-                WHERE updated_at > %s
-                ORDER BY updated_at ASC
-            """, (updated_after,))
-        else:
-            cur.execute("""
-                SELECT id, nome, produto, quantidade, usuario, created_at, updated_at, deleted
-                FROM doacoes
-                ORDER BY updated_at ASC
-            """)
-
-        rows = cur.fetchall()
-
-        cur.close()
-        conn.close()
-
-        resultado = []
-        for r in rows:
-            resultado.append({
-                "id": r[0],
-                "nome": r[1],
-                "produto": r[2],
-                "quantidade": float(r[3]),
-                "usuario": r[4],
-                "created_at": r[5],
-                "updated_at": r[6],
-                "deleted": r[7]
-            })
-
-        return jsonify(resultado)
-
-    except Exception as e:
-        print("ERRO SYNC:", str(e))
-        return jsonify({"erro": str(e)}), 500
-
-
-# =========================
-# ✏️ UPDATE
-# =========================
-@app.route('/atualizar', methods=['POST'])
-def atualizar():
-    try:
-        data = request.json
-        id = data.get('id')
-
-        conn = get_connection()
-        cur = conn.cursor()
-
-        cur.execute("""
-            UPDATE doacoes
-            SET nome=%s, produto=%s, quantidade=%s, usuario=%s, updated_at=NOW()
-            WHERE id=%s
-        """, (
-            data.get('nome'),
-            data.get('produto'),
-            float(data.get('quantidade')),
-            data.get('usuario'),
-            id
-        ))
-
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        return jsonify({"status": "atualizado"})
-
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 500
-
-
-# =========================
-# 🗑️ DELETE LÓGICO (CORRIGIDO)
+# 🗑️ DELETE LÓGICO
 # =========================
 @app.route('/deletar', methods=['POST'])
 def deletar():
     try:
         data = request.json
-        id = data.get('id')
+        id_local = data.get('id_local')
 
         conn = get_connection()
         cur = conn.cursor()
@@ -191,14 +107,14 @@ def deletar():
         cur.execute("""
             UPDATE doacoes
             SET deleted = TRUE, updated_at = NOW()
-            WHERE id = %s
-        """, (id,))
+            WHERE id_local = %s
+        """, (id_local,))
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({"status": "deletado (soft)"})
+        return jsonify({"status": "ok"})
 
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
